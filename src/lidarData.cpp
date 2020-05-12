@@ -1,20 +1,21 @@
-
 #include <iostream>
 #include <algorithm>
 #include <opencv2/highgui/highgui.hpp>
 #include <opencv2/imgproc/imgproc.hpp>
 #include "lidarData.hpp"
 
-
 using namespace std;
 
 // remove Lidar points based on min. and max distance in X, Y and Z
-void cropLidarPoints(std::vector<LidarPoint> &lidarPoints, float minX, float maxX, float maxY, float minZ, float maxZ, float minR)
+void cropLidarPoints(std::vector<LidarPoint> &lidarPoints, float minX, float maxX, float maxY, float minZ, float maxZ, float minR, float maxR)
 {
-    std::vector<LidarPoint> newLidarPts; 
+    std::vector<LidarPoint> newLidarPts;
     for(auto it=lidarPoints.begin(); it!=lidarPoints.end(); ++it) {
         
-       if( (*it).x>=minX && (*it).x<=maxX && (*it).z>=minZ && (*it).z<=maxZ && (*it).z<=0.0 && abs((*it).y)<=maxY && (*it).r>=minR )  // Check if Lidar point is outside of boundaries
+       if( (*it).x >= minX && (*it).x <= maxX && 
+           (*it).z >= minZ && (*it).z <= maxZ && 
+           (*it).z <= 0.0 && abs((*it).y) <= maxY && 
+           (*it).r >= minR && (*it).r <= maxR )  // Check if Lidar point is outside of boundaries
        {
            newLidarPts.push_back(*it);
        }
@@ -23,6 +24,49 @@ void cropLidarPoints(std::vector<LidarPoint> &lidarPoints, float minX, float max
     lidarPoints = newLidarPts;
 }
 
+// Crop Lidar points for the ego lane
+void cropLidarPointsEgoLane(std::vector<LidarPoint> &lidarPoints, double laneWidth)
+{    
+    vector<LidarPoint> newLidarPts;
+    for(auto it=lidarPoints.begin(); it!=lidarPoints.end(); ++it)
+    {
+        if (abs(it->z) <= laneWidth / 2.0)
+            newLidarPts.push_back(*it);
+    }
+
+    lidarPoints = newLidarPts;
+}
+
+// Crop Lidar points above the bumper
+void cropLidarPointsAboveBumper(std::vector<LidarPoint> &lidarPoints)
+{
+    // Percentage of Lidar poitns to be ignored 
+    // that are below the lower portion of the bumper 
+    const double pct_lowerBumper = 0.15;
+
+    // Find the local min and max Z-value of Lidar point clouds
+    double maxZ = -1;
+    double minZ = 1e8;
+    for(auto it=lidarPoints.begin(); it!=lidarPoints.end(); ++it)
+    {
+        maxZ = max((*it).z,maxZ);
+        minZ = min((*it).z,minZ);
+    }
+
+    double above_bumper_Z = (maxZ - minZ)*pct_lowerBumper + minZ;
+    // cout << "maxZ : " << maxZ << endl;
+    // cout << "minZ : " << minZ << endl;
+    // cout << "above_bumper_Z : " << above_bumper_Z << endl;
+
+    vector<LidarPoint> newLidarPts;
+    for(auto it=lidarPoints.begin(); it!=lidarPoints.end(); ++it)
+    {
+        if ((*it).z >= above_bumper_Z)
+            newLidarPts.push_back(*it);
+    }
+
+    lidarPoints = newLidarPts;
+}
 
 
 // Load Lidar points from a given location and store them in a vector
